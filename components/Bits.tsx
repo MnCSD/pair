@@ -62,7 +62,7 @@ export const tilt = (deg: number, delay = 0, duration = 6): CSSProperties =>
 export function FloatingStack() {
   return (
     <div aria-hidden className="relative mt-auto h-[220px] w-full max-w-[440px]">
-      <div className="absolute left-0 top-2 animate-float bg-ink px-5 py-3.5 text-[22px] font-extrabold text-bg shadow-[5px_5px_0_theme(colors.accent.DEFAULT)]" style={tilt(-4, 0, 5)}>Hi Bella!</div>
+      <div className="absolute left-0 top-2 animate-float bg-ink px-5 py-3.5 text-[22px] font-extrabold text-bg shadow-[5px_5px_0_theme(colors.accent.DEFAULT)]" style={tilt(-4, 0, 5)}>Hey you!</div>
       <div className="absolute right-[8%] top-[70px] animate-float bg-accent px-5 py-3.5 text-[22px] font-extrabold text-bg shadow-[-5px_5px_0_theme(colors.ink)]" style={tilt(3, 0.8, 6)}>hey you</div>
       <div className="absolute left-[14%] top-[146px] animate-float border-2 border-dashed border-neutral-600 px-[18px] py-3 text-xl font-extrabold text-neutral-600" style={tilt(-2, 1.6, 7)}>…poof</div>
       <div className="absolute right-0 top-0 h-7 w-7 animate-float bg-accent" style={tilt(18, 0.3, 4)} />

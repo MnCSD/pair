@@ -95,9 +95,11 @@ export function useChatSession() {
     const onText = (m: { id: string; from: Role; text: string; at: number; replyTo?: ReplyTo }) => {
       const s = ref.current;
       if (!s) return;
+      const isMine = m.from === s.role;
+      // replyTo.mine from server is from sender's perspective, keep as-is for own messages, flip for peer's
+      const adjustedReplyTo = m.replyTo ? { ...m.replyTo, mine: isMine ? m.replyTo.mine : !m.replyTo.mine } : undefined;
       setMessages((ms) => (ms.some((x) => x.id === m.id) ? ms : [...ms, {
-        id: m.id, mine: m.from === s.role, kind: 'text', text: m.text, at: m.at,
-        replyTo: m.replyTo ? { ...m.replyTo, mine: m.replyTo.mine === (m.from === s.role) ? m.replyTo.mine : !m.replyTo.mine } : undefined
+        id: m.id, mine: isMine, kind: 'text', text: m.text, at: m.at, replyTo: adjustedReplyTo
       }]));
     };
     const onImage = (m: { id: string; mime: string; name: string; at: number; data: ArrayBuffer; viewDuration?: number; replyTo?: ReplyTo }) => {
@@ -105,9 +107,11 @@ export function useChatSession() {
       if (!s) return;
       const url = URL.createObjectURL(new Blob([m.data], { type: m.mime }));
       urls.current.add(url);
+      // Images from peer: flip the replyTo.mine perspective
+      const adjustedReplyTo = m.replyTo ? { ...m.replyTo, mine: !m.replyTo.mine } : undefined;
       setMessages((ms) => [...ms, {
         id: m.id, mine: false, kind: 'image', url, name: m.name, at: m.at, viewDuration: m.viewDuration,
-        replyTo: m.replyTo ? { ...m.replyTo, mine: !m.replyTo.mine } : undefined
+        replyTo: adjustedReplyTo
       }]);
     };
     const onReaction = (m: { messageId: string; emoji: Reaction; from: Role }) => {

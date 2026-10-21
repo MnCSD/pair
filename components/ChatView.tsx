@@ -23,6 +23,7 @@ export function ChatView({ chat }: { chat: ChatSession }) {
   const [showReactions, setShowReactions] = useState<string | null>(null);
   const [viewDuration, setViewDuration] = useState<number | undefined>(undefined);
   const [timedImage, setTimedImage] = useState<{ url: string; remaining: number; messageId: string } | null>(null);
+  const [viewedTimedImages, setViewedTimedImages] = useState<Set<string>>(new Set());
   const listRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
@@ -63,11 +64,14 @@ export function ChatView({ chat }: { chat: ChatSession }) {
   // Timer for timed image viewing
   useEffect(() => {
     if (!timedImage) return;
+    const messageId = timedImage.messageId;
     timerRef.current = setInterval(() => {
       setTimedImage((prev) => {
         if (!prev) return null;
         if (prev.remaining <= 1) {
           clearInterval(timerRef.current);
+          // Mark this image as viewed so it disappears from the chat
+          setViewedTimedImages((viewed) => new Set([...viewed, messageId]));
           return null;
         }
         return { ...prev, remaining: prev.remaining - 1 };
@@ -84,7 +88,9 @@ export function ChatView({ chat }: { chat: ChatSession }) {
     const el = textRef.current;
     if (!el) return;
     el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+    const newHeight = Math.min(el.scrollHeight, 140);
+    el.style.height = newHeight + 'px';
+    el.style.overflowY = el.scrollHeight > 140 ? 'auto' : 'hidden';
   };
 
   const onDraft = (e: ChangeEvent<HTMLTextAreaElement>) => {
@@ -242,7 +248,7 @@ export function ChatView({ chat }: { chat: ChatSession }) {
               {m.replyTo && (
                 <div className={`flex items-center gap-1.5 text-[11px] text-neutral-600 ${m.mine ? 'mr-2' : 'ml-2'}`}>
                   <CornerUpLeft size={12} />
-                  <span>Replying to {m.replyTo.mine ? 'yourself' : peer}:</span>
+                  <span>Replying to {m.mine ? (m.replyTo.mine ? 'yourself' : peer) : (m.replyTo.mine ? 'you' : 'themselves')}:</span>
                   <span className="max-w-[120px] truncate italic">
                     {m.replyTo.kind === 'text' ? m.replyTo.text : 'image'}
                   </span>
@@ -253,9 +259,9 @@ export function ChatView({ chat }: { chat: ChatSession }) {
                 {m.mine ? (<>{time(m.at)} · {me}<Avatar name={me} /></>) : (<><Avatar name={peer} tone="accent" />{peer} · {time(m.at)}</>)}
               </div>
 
-              <div className="relative">
+              <div className="relative max-w-[min(80vw,520px)]">
                 {m.kind === 'text' && (
-                  <div className={`max-w-[min(80%,520px)] whitespace-pre-wrap break-words px-[18px] py-3 text-[15px] ${m.mine
+                  <div className={`inline-block whitespace-pre-wrap break-words px-[18px] py-3 text-[15px] ${m.mine
                     ? 'rounded-[22px_22px_6px_22px] bg-ink text-bg shadow-[4px_4px_0_theme(colors.accent.DEFAULT)]'
                     : 'rounded-[22px_22px_22px_6px] bg-accent-100 text-accent-900 shadow-[-4px_4px_0_theme(colors.ink)]'}`}>
                     {m.text}
@@ -266,7 +272,13 @@ export function ChatView({ chat }: { chat: ChatSession }) {
                   <div className={`relative max-w-[min(80%,360px)] overflow-hidden border-[3px] ${m.mine
                     ? 'rounded-[20px_20px_6px_20px] border-ink bg-ink shadow-[4px_4px_0_theme(colors.accent.DEFAULT)]'
                     : 'rounded-[20px_20px_20px_6px] border-accent-100 bg-surface shadow-[-4px_4px_0_theme(colors.ink)]'}`}>
-                    {m.viewDuration && !m.mine ? (
+                    {/* Timed image that has been viewed - show expired message */}
+                    {m.viewDuration && !m.mine && viewedTimedImages.has(m.id) ? (
+                      <div className="flex flex-col items-center justify-center gap-2 px-8 py-6 text-neutral-500">
+                        <Clock size={24} />
+                        <span className="text-sm font-medium">Image expired</span>
+                      </div>
+                    ) : m.viewDuration && !m.mine ? (
                       <button
                         onClick={() => openTimedImage(m.url!, m.viewDuration!, m.id)}
                         className="group/img relative block cursor-pointer"
@@ -433,7 +445,7 @@ export function ChatView({ chat }: { chat: ChatSession }) {
               disabled={blocked}
               aria-label="Message"
               placeholder={!peerOnline ? `Waiting for ${peer} to reconnect…` : replyingTo ? `Reply to ${replyingTo.mine ? 'yourself' : peer}…` : `Message ${peer}`}
-              className="max-h-[140px] min-h-12 w-full resize-none rounded-3xl border border-divider bg-surface px-[18px] py-3 text-[15px] caret-accent placeholder:text-neutral-600 hover:border-ink/45 focus-visible:border-accent focus-visible:outline-none disabled:opacity-[.45]"
+              className="max-h-[140px] min-h-12 w-full resize-none overflow-hidden rounded-3xl border border-divider bg-surface px-[18px] py-3 text-[15px] caret-accent placeholder:text-neutral-600 hover:border-ink/45 focus-visible:border-accent focus-visible:outline-none disabled:opacity-[.45]"
             />
             <button
               onClick={send}

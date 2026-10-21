@@ -1,6 +1,6 @@
 // Shared Tailwind class strings for the Modernist look.
 export const btnPrimary =
-  'group relative inline-flex min-h-14 w-full items-center justify-between gap-3 overflow-hidden rounded-2xl bg-ink pl-[26px] pr-[22px] text-left text-[17px] font-extrabold text-bg transition-all duration-200 ' +
+  'group relative inline-flex min-h-14 w-full items-center justify-between gap-3 overflow-hidden rounded-2xl bg-ink px-6 py-4 text-left text-[17px] font-extrabold text-bg transition-all duration-200 ' +
   'before:absolute before:inset-0 before:bg-accent before:transition-transform before:duration-300 before:ease-out ' +
   'hover:before:translate-x-full hover:shadow-lg hover:shadow-accent/25 ' +
   'active:scale-[0.98] active:before:translate-x-full ' +

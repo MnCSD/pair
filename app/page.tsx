@@ -64,7 +64,7 @@ export default function HomePage() {
             </div>
             <div>
               <label className={label} htmlFor="invitee">Their name</label>
-              <input id="invitee" className={input} placeholder="e.g. Bella" maxLength={MAX_NAME} autoComplete="off" autoFocus
+              <input id="invitee" className={input} placeholder="e.g. Alex" maxLength={MAX_NAME} autoComplete="off" autoFocus
                 value={invitee} aria-invalid={!!invError} onChange={(e) => { setInvitee(e.target.value); setInvError(null); }} />
               {invError && <div role="alert" className={fieldError}>{invError}</div>}
               <div className={hint}>Not case-sensitive. Must differ from your name.</div>
@@ -97,7 +97,7 @@ export default function HomePage() {
         <form onSubmit={toCreate} className="flex flex-col gap-6" noValidate>
           <div>
             <label className={label} htmlFor="me">Your name in this chat</label>
-            <input id="me" className={input} placeholder="e.g. Marios" maxLength={MAX_NAME} autoComplete="off"
+            <input id="me" className={input} placeholder="Your name" maxLength={MAX_NAME} autoComplete="off"
               value={me} aria-invalid={!!meError} onChange={(e) => { setMe(e.target.value); setMeError(null); }} />
             {meError && <div role="alert" className={fieldError}>{meError}</div>}
             <div className={hint}>Only used for this session. Up to {MAX_NAME} characters.</div>
