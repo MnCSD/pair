@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npm run dev:*)",
+      "Bash(PORT=3001 npm run dev:*)",
+      "Bash(curl:*)",
+      "Bash(mkdir:*)",
+      "Bash(vercel --version:*)",
+      "Bash(npm run build:*)",
+      "Bash(railway:*)"
+    ]
+  }
+}
