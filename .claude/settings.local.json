@@ -9,7 +9,10 @@
       "Bash(mkdir:*)",
       "Bash(vercel --version:*)",
       "Bash(npm run build:*)",
-      "Bash(railway:*)"
+      "Bash(railway:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)"
     ]
   }
 }
