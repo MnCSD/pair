@@ -6,6 +6,16 @@ import { CHUNK_BYTES, MAX_TEXT, errorText, validateImage } from './shared';
 export type Role = 'creator' | 'guest';
 export type Phase = 'waiting' | 'active' | 'ended';
 
+export type Reaction = '❤️' | '😂' | '😮' | '😢' | '👍' | '👎';
+export const REACTIONS: Reaction[] = ['❤️', '😂', '😮', '😢', '👍', '👎'];
+
+export interface ReplyTo {
+  id: string;
+  kind: 'text' | 'image';
+  text?: string;
+  mine: boolean;
+}
+
 export interface ChatMessage {
   id: string;
   mine: boolean;
@@ -16,6 +26,9 @@ export interface ChatMessage {
   at: number;
   progress?: number;
   failed?: boolean;
+  replyTo?: ReplyTo;
+  reactions?: { emoji: Reaction; mine: boolean }[];
+  viewDuration?: number; // seconds for image viewing (like Snapchat)
 }
 
 export interface Session { roomId: string; token: string; role: Role; me: string; peer: string }
@@ -79,16 +92,37 @@ export function useChatSession() {
       setPhase('active');
       setStartedAt(Date.now());
     };
-    const onText = (m: { id: string; from: Role; text: string; at: number }) => {
+    const onText = (m: { id: string; from: Role; text: string; at: number; replyTo?: ReplyTo }) => {
       const s = ref.current;
       if (!s) return;
-      setMessages((ms) => (ms.some((x) => x.id === m.id) ? ms : [...ms, { id: m.id, mine: m.from === s.role, kind: 'text', text: m.text, at: m.at }]));
+      setMessages((ms) => (ms.some((x) => x.id === m.id) ? ms : [...ms, {
+        id: m.id, mine: m.from === s.role, kind: 'text', text: m.text, at: m.at,
+        replyTo: m.replyTo ? { ...m.replyTo, mine: m.replyTo.mine === (m.from === s.role) ? m.replyTo.mine : !m.replyTo.mine } : undefined
+      }]));
     };
-    const onImage = (m: { id: string; mime: string; name: string; at: number; data: ArrayBuffer }) => {
-      if (!ref.current) return;
+    const onImage = (m: { id: string; mime: string; name: string; at: number; data: ArrayBuffer; viewDuration?: number; replyTo?: ReplyTo }) => {
+      const s = ref.current;
+      if (!s) return;
       const url = URL.createObjectURL(new Blob([m.data], { type: m.mime }));
       urls.current.add(url);
-      setMessages((ms) => [...ms, { id: m.id, mine: false, kind: 'image', url, name: m.name, at: m.at }]);
+      setMessages((ms) => [...ms, {
+        id: m.id, mine: false, kind: 'image', url, name: m.name, at: m.at, viewDuration: m.viewDuration,
+        replyTo: m.replyTo ? { ...m.replyTo, mine: !m.replyTo.mine } : undefined
+      }]);
+    };
+    const onReaction = (m: { messageId: string; emoji: Reaction; from: Role }) => {
+      const s = ref.current;
+      if (!s) return;
+      setMessages((ms) => ms.map((msg) => {
+        if (msg.id !== m.messageId) return msg;
+        const mine = m.from === s.role;
+        const existing = msg.reactions ?? [];
+        const hasIt = existing.some((r) => r.emoji === m.emoji && r.mine === mine);
+        if (hasIt) {
+          return { ...msg, reactions: existing.filter((r) => !(r.emoji === m.emoji && r.mine === mine)) };
+        }
+        return { ...msg, reactions: [...existing.filter((r) => r.mine !== mine), { emoji: m.emoji, mine }] };
+      }));
     };
     const onTyping = (on: boolean) => setPeerTyping(!!on);
     const onPeer = ({ online, graceMs }: { online: boolean; graceMs?: number }) => {
@@ -123,6 +157,7 @@ export function useChatSession() {
     sock.on('room:active', onActive);
     sock.on('msg:text', onText);
     sock.on('msg:image', onImage);
+    sock.on('msg:reaction', onReaction);
     sock.on('typing', onTyping);
     sock.on('peer:status', onPeer);
     sock.on('room:ended', onEnded);
@@ -133,6 +168,7 @@ export function useChatSession() {
       sock.off('room:active', onActive);
       sock.off('msg:text', onText);
       sock.off('msg:image', onImage);
+      sock.off('msg:reaction', onReaction);
       sock.off('typing', onTyping);
       sock.off('peer:status', onPeer);
       sock.off('room:ended', onEnded);
@@ -150,26 +186,32 @@ export function useChatSession() {
     urls.current.clear();
   }, []);
 
-  const sendText = useCallback(async (text: string): Promise<Result> => {
+  const sendText = useCallback(async (text: string, replyTo?: ReplyTo): Promise<Result> => {
     const t = text.trim();
     if (!t) return { ok: false };
     if (t.length > MAX_TEXT) return { ok: false, error: errorText('invalid-text') };
-    const r = await emitAck('msg:text', { text: t });
+    const r = await emitAck('msg:text', { text: t, replyTo });
     return r.ok ? { ok: true } : { ok: false, error: errorText(r.error) };
   }, []);
 
-  const sendImage = useCallback(async (file: File): Promise<Result> => {
+  const sendImage = useCallback(async (file: File, options?: { replyTo?: ReplyTo; viewDuration?: number }): Promise<Result> => {
     if (!ref.current) return { ok: false };
     const invalid = validateImage(file);
     if (invalid) return { ok: false, error: invalid };
     const localId = 'local-' + crypto.randomUUID();
     const url = URL.createObjectURL(file);
     urls.current.add(url);
-    setMessages((ms) => [...ms, { id: localId, mine: true, kind: 'image', url, name: file.name, at: Date.now(), progress: 0 }]);
+    setMessages((ms) => [...ms, {
+      id: localId, mine: true, kind: 'image', url, name: file.name, at: Date.now(), progress: 0,
+      replyTo: options?.replyTo, viewDuration: options?.viewDuration
+    }]);
     const patch = (p: Partial<ChatMessage>) => setMessages((ms) => ms.map((m) => (m.id === localId ? { ...m, ...p } : m)));
     const fail = (code?: string): Result => { patch({ failed: true }); return { ok: false, error: errorText(code) }; };
 
-    const started = await emitAck<{ ok: boolean; id?: string; error?: string }>('img:start', { mime: file.type, size: file.size, name: file.name.slice(0, 120) });
+    const started = await emitAck<{ ok: boolean; id?: string; error?: string }>('img:start', {
+      mime: file.type, size: file.size, name: file.name.slice(0, 120),
+      viewDuration: options?.viewDuration, replyTo: options?.replyTo
+    });
     if (!started.ok || !started.id) return fail(started.error);
     for (let offset = 0; offset < file.size; offset += CHUNK_BYTES) {
       if (!ref.current) return { ok: false };
@@ -186,6 +228,10 @@ export function useChatSession() {
 
   const setTyping = useCallback((on: boolean) => { if (ref.current) getSocket().emit('typing', on); }, []);
 
+  const sendReaction = useCallback((messageId: string, emoji: Reaction) => {
+    if (ref.current) getSocket().emit('msg:reaction', { messageId, emoji });
+  }, []);
+
   const leave = useCallback(() => {
     if (ref.current) getSocket().emit('room:leave');
     end('You left the chat.');
@@ -193,7 +239,7 @@ export function useChatSession() {
 
   return {
     session, phase, messages, peerOnline, graceEndsAt, peerTyping, connected, startedAt, endReason,
-    start, reset, sendText, sendImage, setTyping, leave,
+    start, reset, sendText, sendImage, setTyping, sendReaction, leave,
   };
 }
 

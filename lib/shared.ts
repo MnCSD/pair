@@ -4,6 +4,8 @@ export const MAX_TEXT = 4000;
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 export const CHUNK_BYTES = 128 * 1024;
 export const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+export const ALLOWED_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '👎'] as const;
+export const VIEW_DURATION_OPTIONS = [3, 5, 10] as const; // seconds
 
 // C0/C1 controls, zero-width and bidi override characters.
 const UNSUPPORTED = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]/;

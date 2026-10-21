@@ -1,6 +1,13 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { Server, Socket } from 'socket.io';
-import { ALLOWED_MIME, CHUNK_BYTES, MAX_IMAGE_BYTES, MAX_TEXT, normalizeName, validateName } from '../lib/shared';
+import { ALLOWED_MIME, ALLOWED_REACTIONS, CHUNK_BYTES, MAX_IMAGE_BYTES, MAX_TEXT, normalizeName, validateName, VIEW_DURATION_OPTIONS } from '../lib/shared';
+
+interface ReplyTo {
+  id: string;
+  kind: 'text' | 'image';
+  text?: string;
+  mine: boolean;
+}
 
 const GRACE_MS = Number(process.env.GRACE_MS ?? 10_000);
 const CLOSE_GRACE_MS = Number(process.env.CLOSE_GRACE_MS ?? 3_000);
@@ -23,6 +30,7 @@ interface Participant {
 interface Upload {
   from: Role; mime: string; name: string; size: number;
   chunks: Buffer[]; received: number; timer: NodeJS.Timeout;
+  viewDuration?: number; replyTo?: ReplyTo;
 }
 interface Room {
   id: string;
@@ -213,9 +221,19 @@ export function attachRooms(io: Server) {
       if (!limits.message(socket.id)) return reply(ack, { ok: false, error: 'rate' });
       const text = typeof payload?.text === 'string' ? payload.text.trim() : '';
       if (!text || text.length > MAX_TEXT) return reply(ack, { ok: false, error: 'invalid-text' });
-      const msg = { id: randomUUID(), from: ctx.role, text, at: Date.now() };
+      const replyTo = payload?.replyTo as ReplyTo | undefined;
+      const msg = { id: randomUUID(), from: ctx.role, text, at: Date.now(), replyTo };
       io.to(ctx.room.id).emit('msg:text', msg); // relayed, never stored
       reply(ack, { ok: true, id: msg.id });
+    });
+
+    socket.on('msg:reaction', (payload) => {
+      const ctx = context(socket);
+      if (!ctx || ctx.room.status !== 'active') return;
+      const messageId = String(payload?.messageId ?? '');
+      const emoji = String(payload?.emoji ?? '');
+      if (!messageId || !ALLOWED_REACTIONS.includes(emoji as typeof ALLOWED_REACTIONS[number])) return;
+      io.to(ctx.room.id).emit('msg:reaction', { messageId, emoji, from: ctx.role });
     });
 
     socket.on('typing', (on) => {
@@ -236,9 +254,12 @@ export function attachRooms(io: Server) {
       const id = randomUUID();
       const room = ctx.room;
       const timer = setTimeout(() => dropUpload(room, id), UPLOAD_TTL_MS);
+      const viewDuration = VIEW_DURATION_OPTIONS.includes(payload?.viewDuration) ? payload.viewDuration : undefined;
+      const replyTo = payload?.replyTo as ReplyTo | undefined;
       room.uploads.set(id, {
         from: ctx.role, mime, size, chunks: [], received: 0, timer,
         name: String(payload?.name ?? 'image').slice(0, 120),
+        viewDuration, replyTo,
       });
       reply(ack, { ok: true, id });
     });
@@ -265,12 +286,13 @@ export function attachRooms(io: Server) {
       if (!ctx || !u || u.from !== ctx.role) return reply(ack, { ok: false, error: 'upload' });
       const chunks = u.chunks;
       const complete = u.received === u.size;
+      const { viewDuration, replyTo } = u;
       dropUpload(ctx.room, id);
       if (!complete || ctx.room.status !== 'active') return reply(ack, { ok: false, error: 'upload' });
       const data = Buffer.concat(chunks);
       if (sniff(data) !== u.mime) return reply(ack, { ok: false, error: 'image-type' });
       const at = Date.now();
-      socket.to(ctx.room.id).emit('msg:image', { id, from: ctx.role, mime: u.mime, name: u.name, at, data });
+      socket.to(ctx.room.id).emit('msg:image', { id, from: ctx.role, mime: u.mime, name: u.name, at, data, viewDuration, replyTo });
       reply(ack, { ok: true, id, at });
       // `data` goes out of scope here; nothing keeps a reference to the buffer.
     });

@@ -11,6 +11,11 @@ a:hover { color: theme('colors.accent.600'); }
 :focus-visible { outline: 2px solid theme('colors.accent.DEFAULT'); outline-offset: 2px; }
 ::selection { background: rgb(236 48 19 / 0.3); }
 
+/* Safe area for mobile devices */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-bottom { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }

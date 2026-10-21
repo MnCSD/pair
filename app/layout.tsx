@@ -14,7 +14,13 @@ export const metadata: Metadata = {
   referrer: 'no-referrer',
 };
 
-export const viewport: Viewport = { themeColor: '#f3f2f2', width: 'device-width', initialScale: 1 };
+export const viewport: Viewport = {
+  themeColor: '#f3f2f2',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
