@@ -58,6 +58,8 @@ components/          ChatView, WaitingView, EndedView, shared bits
 
 **Messages** are relayed through the server and never stored. **Images** are sent in 128 KB chunks with acks (this drives the progress bar). They are reassembled in memory, checked against the declared type by magic bytes, sent to the peer, and then dropped. The receiver shows them through `blob:` URLs, which are revoked when the session ends.
 
+**Screenshot notices** are best-effort. Browsers can't see OS capture tools, so the client only catches the common shortcuts while the tab has focus: PrintScreen, Cmd+Shift+3/4/5 on macOS, and Win+Shift+S. It then emits `screenshot`, and the server broadcasts a notice to both people (rate-limited, never stored). Phone screenshots, screen recording and screenshots of an unfocused window aren't detected.
+
 **Disconnects.** When a socket drops, the server starts the grace timer and tells the other person, whose UI shows a countdown and disables input. Reconnecting within the grace period (Socket.IO auto-reconnects and the client sends `room:resume` with its in-memory token) continues the same session. Once the timer fires, the room terminates and the remaining person's history is wiped. **Leave chat** terminates immediately.
 
 ## Limitations, stated honestly

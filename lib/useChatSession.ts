@@ -129,18 +129,18 @@ export function useChatSession() {
         return { ...msg, reactions: [...existing.filter((r) => r.mine !== mine), { emoji: m.emoji, mine }] };
       }));
     };
-    const onScreenshot = (m: { from: Role; name: string; at: number }) => {
+    const onScreenshot = (m: { id: string; from: Role; name: string; at: number }) => {
       const s = ref.current;
       if (!s) return;
       const mine = m.from === s.role;
-      setMessages((ms) => [...ms, {
-        id: `screenshot-${m.at}`,
+      setMessages((ms) => (ms.some((x) => x.id === m.id) ? ms : [...ms, {
+        id: m.id,
         mine,
         kind: 'system',
         systemType: 'screenshot',
-        text: mine ? 'You took a screenshot' : `${m.name} took a screenshot`,
+        text: mine ? 'You took a screenshot' : `${m.name || s.peer} took a screenshot`,
         at: m.at,
-      }]);
+      }]));
     };
     const onTyping = (on: boolean) => setPeerTyping(!!on);
     const onPeer = ({ online, graceMs }: { online: boolean; graceMs?: number }) => {
@@ -172,14 +172,23 @@ export function useChatSession() {
     };
     const onPageHide = () => { if (ref.current) sock.emit('room:closing'); };
 
-    // Screenshot detection using keyboard shortcuts
-    const onKeyDown = (e: KeyboardEvent) => {
-      // Detect PrintScreen key or Cmd+Shift+3/4 on Mac
-      if (e.key === 'PrintScreen' ||
-          (e.metaKey && e.shiftKey && (e.key === '3' || e.key === '4')) ||
-          (e.ctrlKey && e.key === 'PrintScreen')) {
-        if (ref.current) sock.emit('screenshot');
-      }
+    // Best-effort screenshot detection. Browsers can't see OS capture tools,
+    // so this only catches the common keyboard shortcuts while the tab has focus:
+    // PrintScreen (Windows/Linux, only fires on keyup), Cmd+Shift+3/4/5 (macOS),
+    // Win+Shift+S (Windows Snipping Tool). e.code is used because Shift changes e.key.
+    let lastShot = 0;
+    const reportScreenshot = () => {
+      const now = Date.now();
+      if (!ref.current || now - lastShot < 1500) return;
+      lastShot = now;
+      sock.emit('screenshot');
+    };
+    const isMacShot = (e: KeyboardEvent) =>
+      e.metaKey && e.shiftKey && (e.code === 'Digit3' || e.code === 'Digit4' || e.code === 'Digit5');
+    const isSnip = (e: KeyboardEvent) => e.metaKey && e.shiftKey && e.code === 'KeyS';
+    const onKeyDown = (e: KeyboardEvent) => { if (isMacShot(e) || isSnip(e)) reportScreenshot(); };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'PrintScreen' || e.code === 'PrintScreen') reportScreenshot();
     };
 
     sock.on('room:active', onActive);
@@ -193,7 +202,8 @@ export function useChatSession() {
     sock.on('disconnect', onDisconnect);
     sock.on('connect', onConnect);
     window.addEventListener('pagehide', onPageHide);
-    window.addEventListener('keyup', onKeyDown);
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
     return () => {
       sock.off('room:active', onActive);
       sock.off('msg:text', onText);
@@ -206,7 +216,8 @@ export function useChatSession() {
       sock.off('disconnect', onDisconnect);
       sock.off('connect', onConnect);
       window.removeEventListener('pagehide', onPageHide);
-      window.removeEventListener('keyup', onKeyDown);
+      window.removeEventListener('keydown', onKeyDown);
+    window.removeEventListener('keyup', onKeyUp);
     };
   }, [end]);
 

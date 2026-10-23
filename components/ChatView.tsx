@@ -175,6 +175,7 @@ export function ChatView({ chat }: { chat: ChatSession }) {
   };
 
   const handleReply = (msg: ChatMessage) => {
+    if (msg.kind === 'system') return;
     setReplyingTo({
       id: msg.id,
       kind: msg.kind,

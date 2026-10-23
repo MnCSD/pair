@@ -76,6 +76,7 @@ const limits = {
   join: rateLimiter(30, 60_000),
   message: rateLimiter(40, 10_000),
   image: rateLimiter(12, 60_000),
+  screenshot: rateLimiter(5, 10_000),
 };
 
 function sniff(buf: Buffer): string | null {
@@ -243,10 +244,9 @@ export function attachRooms(io: Server) {
 
     socket.on('screenshot', () => {
       const ctx = context(socket);
-      if (ctx?.room.status === 'active') {
-        const me = participant(ctx.room, ctx.role);
-        io.to(ctx.room.id).emit('screenshot', { from: ctx.role, name: me?.name ?? '', at: Date.now() });
-      }
+      if (!ctx || ctx.room.status !== 'active' || !limits.screenshot(socket.id)) return;
+      const me = participant(ctx.room, ctx.role);
+      io.to(ctx.room.id).emit('screenshot', { id: randomUUID(), from: ctx.role, name: me?.name ?? '', at: Date.now() });
     });
 
     socket.on('img:start', (payload, ack) => {
