@@ -19,7 +19,7 @@ export interface ReplyTo {
 export interface ChatMessage {
   id: string;
   mine: boolean;
-  kind: 'text' | 'image';
+  kind: 'text' | 'image' | 'system';
   text?: string;
   url?: string;
   name?: string;
@@ -29,6 +29,7 @@ export interface ChatMessage {
   replyTo?: ReplyTo;
   reactions?: { emoji: Reaction; mine: boolean }[];
   viewDuration?: number; // seconds for image viewing (like Snapchat)
+  systemType?: 'screenshot'; // for system messages
 }
 
 export interface Session { roomId: string; token: string; role: Role; me: string; peer: string }
@@ -128,6 +129,19 @@ export function useChatSession() {
         return { ...msg, reactions: [...existing.filter((r) => r.mine !== mine), { emoji: m.emoji, mine }] };
       }));
     };
+    const onScreenshot = (m: { from: Role; name: string; at: number }) => {
+      const s = ref.current;
+      if (!s) return;
+      const mine = m.from === s.role;
+      setMessages((ms) => [...ms, {
+        id: `screenshot-${m.at}`,
+        mine,
+        kind: 'system',
+        systemType: 'screenshot',
+        text: mine ? 'You took a screenshot' : `${m.name} took a screenshot`,
+        at: m.at,
+      }]);
+    };
     const onTyping = (on: boolean) => setPeerTyping(!!on);
     const onPeer = ({ online, graceMs }: { online: boolean; graceMs?: number }) => {
       setPeerOnline(online);
@@ -158,27 +172,41 @@ export function useChatSession() {
     };
     const onPageHide = () => { if (ref.current) sock.emit('room:closing'); };
 
+    // Screenshot detection using keyboard shortcuts
+    const onKeyDown = (e: KeyboardEvent) => {
+      // Detect PrintScreen key or Cmd+Shift+3/4 on Mac
+      if (e.key === 'PrintScreen' ||
+          (e.metaKey && e.shiftKey && (e.key === '3' || e.key === '4')) ||
+          (e.ctrlKey && e.key === 'PrintScreen')) {
+        if (ref.current) sock.emit('screenshot');
+      }
+    };
+
     sock.on('room:active', onActive);
     sock.on('msg:text', onText);
     sock.on('msg:image', onImage);
     sock.on('msg:reaction', onReaction);
+    sock.on('screenshot', onScreenshot);
     sock.on('typing', onTyping);
     sock.on('peer:status', onPeer);
     sock.on('room:ended', onEnded);
     sock.on('disconnect', onDisconnect);
     sock.on('connect', onConnect);
     window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('keyup', onKeyDown);
     return () => {
       sock.off('room:active', onActive);
       sock.off('msg:text', onText);
       sock.off('msg:image', onImage);
       sock.off('msg:reaction', onReaction);
+      sock.off('screenshot', onScreenshot);
       sock.off('typing', onTyping);
       sock.off('peer:status', onPeer);
       sock.off('room:ended', onEnded);
       sock.off('disconnect', onDisconnect);
       sock.off('connect', onConnect);
       window.removeEventListener('pagehide', onPageHide);
+      window.removeEventListener('keyup', onKeyDown);
     };
   }, [end]);
 

@@ -241,6 +241,14 @@ export function attachRooms(io: Server) {
       if (ctx?.room.status === 'active') socket.to(ctx.room.id).emit('typing', on === true);
     });
 
+    socket.on('screenshot', () => {
+      const ctx = context(socket);
+      if (ctx?.room.status === 'active') {
+        const me = participant(ctx.room, ctx.role);
+        io.to(ctx.room.id).emit('screenshot', { from: ctx.role, name: me?.name ?? '', at: Date.now() });
+      }
+    });
+
     socket.on('img:start', (payload, ack) => {
       const ctx = context(socket);
       if (!ctx || ctx.room.status !== 'active') return reply(ack, { ok: false, error: 'inactive' });

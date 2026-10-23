@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, useCallback, type ChangeEvent, type KeyboardEvent, type DragEvent } from 'react';
-import { ArrowRight, ImagePlus, LogOut, X, AlertCircle, Upload, Reply, Clock, CornerUpLeft } from 'lucide-react';
+import { ArrowRight, ImagePlus, LogOut, X, AlertCircle, Upload, Reply, Clock, CornerUpLeft, Camera } from 'lucide-react';
 import type { ChatSession, ChatMessage, ReplyTo, Reaction } from '@/lib/useChatSession';
 import { REACTIONS } from '@/lib/useChatSession';
 import { validateImage, ALLOWED_MIME, VIEW_DURATION_OPTIONS } from '@/lib/shared';
@@ -243,6 +243,16 @@ export function ChatView({ chat }: { chat: ChatSession }) {
           </div>
 
           {messages.map((m) => (
+            m.kind === 'system' ? (
+              /* System message (screenshot notification) */
+              <div key={m.id} className="flex items-center justify-center gap-2 py-2">
+                <div className="flex items-center gap-2 rounded-full bg-accent/10 px-4 py-2 text-[13px] text-accent-800">
+                  <Camera size={14} />
+                  <span>{m.text}</span>
+                  <span className="text-neutral-500">· {time(m.at)}</span>
+                </div>
+              </div>
+            ) : (
             <div key={m.id} className={`group relative flex flex-col gap-1 ${m.mine ? 'items-end' : 'items-start'}`}>
               {/* Reply reference */}
               {m.replyTo && (
@@ -362,6 +372,7 @@ export function ChatView({ chat }: { chat: ChatSession }) {
                 )}
               </div>
             </div>
+            )
           ))}
 
           {peerTyping && (
